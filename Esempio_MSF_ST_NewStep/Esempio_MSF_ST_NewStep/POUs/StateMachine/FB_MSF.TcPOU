@@ -1,0 +1,312 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_MSF" Id="{5e50c71d-3b45-42b0-ab70-5f9410a30be3}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_MSF
+VAR_INPUT
+	(* main inputs to the state machine *)
+	bEnable		: BOOL;		// abilitazione della MSF
+	bStart		: BOOL;		// comando messa in marcia (NA)
+	bStop		: BOOL;		// comando di arresto (NC)
+	bEmg		: BOOL;		// comando di emergenza (NC)
+	bAck		: BOOL;		// comando ripristino dopo emergenza (NA)
+	bFc1		: BOOL;		// fotocellula caricamento sul nastro (NA)
+	bFc2		: BOOL;		// fotocellula scarico dal nastro (NA)
+END_VAR
+
+VAR_OUTPUT
+	(* state machine internals, useful for debugging  *)
+	eStep		: E_Step;	// stato attuale della MSF
+	tStepTime	: TIME;		// tempo di permanenza trascorso nello stato
+	eErrStep	: E_Step;	// stato in cui è stato generato un errore
+	nErrId		: DINT;		// codice identificativo dell'errore
+	
+	(* control signals to the plant *)
+	bH1			: BOOL;		// indicatore macchina accesa
+	bHEmg		: BOOL;		// indicatore stato emergenza
+	bConveyor	: BOOL;		// nastro trasportatore
+	bLibero		: BOOL;		// il nastro è libero
+	
+END_VAR
+
+VAR
+	(* state machine internals *)
+	bInitialized : BOOL;	// inizializzazione dell' FB
+	eNewstep : E_Step;		// richiesta di un nuovo passo
+	bEntryact : BOOL;		// azione di ingresso al passo eseguita
+	fbTonStep : TON;		// temporizzatore permanenza nel passo
+	
+	// timers
+	T31 : TON();
+	fbTonRecovery : TON();	// 
+	
+	(* filters on other input from plant *)
+	fbTonPacketIn : TON();	// filtro sul segnale presenza oggetto
+	fbRtPacketIn : R_TRIG();// fronte presenza oggetto
+	fbTonPacketOut : TON();	// filtro sul segnale scarico oggetto
+	fbRtPacketOut: R_TRIG();// fronte scarico oggetto
+	
+	(* filters on stop input *)
+	fbFtStop : F_TRIG;		// fronte comando di arresto
+	bStopRequest : BOOL;	// richiesta di arresto
+	
+	// abilitazione dell’automatismo
+	enable	: BOOL;
+	
+(*	// condizioni di transizione
+	tr_S0_S1 : BOOL;
+	tr_S1_S2 : BOOL;
+	tr_S2_S3 : BOOL;
+	tr_S3_S1 : BOOL;
+	tr_S3_S0 : BOOL;
+	tr_SE_SA : BOOL;
+	tr_SA_S0 : BOOL;
+*)	
+
+
+
+    // lampeggio
+	osc : FB_Lampeggio();
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT bInitialized THEN
+	(* here you can wait events from other controllers *)	
+	eNewStep := E_Step.NoStep;
+	eStep := E_Step.Stop;
+	bEntryact := FALSE;
+	bInitialized := TRUE;
+ELSE
+	// --- codice ciclico della MSF ----------------------------------------------
+	
+	// aggiornamento delle condizioni di abilitazione (bStop, allarmi, etc)
+    enable := bEnable AND bStop AND bEmg;
+	
+	// 1. Preambolo della MSF ----------------------------------------------------
+
+    // 1.a State machine disabled or failure
+	IF NOT bEnable OR NOT bEmg THEN
+		eNewStep := E_Step.NeOrError;
+	END_IF
+
+	// 1.b Update eStep with the required step to perform
+	//     and set bEntryact to FALSE in order to enable the Entry action
+	IF eNewstep <> E_Step.NoStep THEN
+		eStep := eNewstep;
+		eNewstep := E_Step.NoStep;
+		bEntryact := FALSE;
+	END_IF;
+
+	// 1.c Do filters on signals	
+	fbTonPacketIn(IN := bFc1, PT := T#200MS);	// filtro sensore presenza oggetto su piattaforma carico
+	fbTonPacketOut(IN := bFc2, PT := T#200MS);	// filtro sensore presenza oggetto su piattaforma scarico	
+	
+	//     Do edge detection
+	fbRtPacketIn(CLK := fbTonPacketIn.Q);		// fronte presenza oggetto su piattaforma carico
+	fbRtPacketOut(CLK := fbTonPacketOut.Q);		// fronte presenza oggetto su piattaforma scarico	
+	
+	fbFtStop(CLK := bStop);						// fronte di discesa del comando di arresto
+	
+	// Do requests, for example to stop the machine
+	IF fbFtStop.Q AND bEnable AND bEmg THEN
+		bStopRequest := TRUE;
+	END_IF
+	
+	
+	// 2. The main switch-case ---------------------------------------------------
+	CASE eStep OF
+		// not Enabled or Error -----------------------
+		E_Step.NeOrError :
+			// on entry action
+			IF NOT bEntryact THEN
+				bEntryact := TRUE;
+			END_IF
+			
+			// body
+			bH1 := TRUE;
+			bHEmg := TRUE;
+			bConveyor := FALSE;
+			bLibero := FALSE;
+			
+			// next state transition
+			IF bEnable AND bAck THEN
+				eNewStep := E_Step.Recovering;
+			END_IF
+			
+			// on exit action
+			IF eNewStep <> E_Step.NoStep THEN
+				;
+			END_IF
+			
+		// Recovering ---------------------------------			
+		E_Step.Recovering :
+			// on entry action
+			IF NOT bEntryact THEN
+				bEntryact := TRUE;
+			END_IF
+			
+			// body
+			bH1 := TRUE;
+			bHEmg := osc.q;
+			bConveyor := FALSE;
+			bLibero := FALSE;
+			
+			// next state transition
+			IF bEnable AND tStepTime > T#10S THEN
+				eNewStep := E_Step.Stopping;
+			END_IF
+			
+			// on exit action
+			IF eNewStep <> E_Step.NoStep THEN
+				;
+			END_IF			
+
+		// Stopping -----------------------------------
+		E_Step.Stopping :
+			// on entry action
+			IF NOT bEntryact THEN
+				bEntryact := TRUE;
+			END_IF
+			
+			// body
+			bH1 := TRUE;
+			bHEmg := FALSE;
+			bConveyor := FALSE;
+			bLibero := TRUE;
+			
+			// next state transition
+			IF tStepTime >= T#2S THEN
+				eNewStep := E_Step.Stop;
+			END_IF
+			
+			// on exit action
+			IF eNewStep <> E_Step.NoStep THEN
+				;
+			END_IF
+			
+		// Stop ---------------------------------------
+		E_Step.Stop :
+			// on entry action
+			IF NOT bEntryact THEN
+				bStopRequest := FALSE;
+				bEntryact := TRUE;
+			END_IF
+			
+			// body
+			bH1 := FALSE;
+			bHEmg := FALSE;
+			bConveyor := FALSE;
+			bLibero := FALSE;
+			
+			// next state transition
+			IF bStart THEN
+				eNewStep := E_Step.Waiting;
+			END_IF
+			
+			// on exit action
+			IF eNewStep <> E_Step.NoStep THEN
+				;
+			END_IF
+
+		// Waiting ------------------------------------
+		E_Step.Waiting :
+			// on entry action
+			IF NOT bEntryact THEN
+				bEntryact := TRUE;
+			END_IF
+			
+			// body
+			bH1 := TRUE;
+			bHEmg := FALSE;
+			bConveyor := FALSE;
+			bLibero := TRUE;
+			
+			// next state transition
+			IF bStopRequest AND NOT bFc1 THEN
+				eNewStep := E_Step.Stopping;
+			ELSE
+				IF fbRtPacketIn.Q AND NOT bFc2 THEN
+					eNewStep := E_Step.Feeding;
+				END_IF
+			END_IF
+			
+			// on exit action
+			IF eNewStep <> E_Step.NoStep THEN
+				;
+			END_IF
+
+		// Feeding ------------------------------------
+		E_Step.Feeding :
+			// on entry action
+			IF NOT bEntryact THEN
+				bEntryact := TRUE;
+			END_IF
+			
+			// body
+			bH1 := TRUE;
+			bHEmg := FALSE;
+			bConveyor := TRUE;
+			bLibero := FALSE;
+			
+			// next state transition
+			IF bStopRequest THEN
+				eNewStep := E_Step.Stopping;
+			ELSE
+				IF fbRtPacketOut.Q THEN
+					eNewStep := E_Step.Unloading;
+				END_IF
+			END_IF
+			
+			// on exit action
+			IF eNewStep <> E_Step.NoStep THEN
+				;
+			END_IF
+		
+		// Unloading ----------------------------------
+		E_Step.Unloading :
+			// on entry action
+			IF NOT bEntryact THEN
+				bEntryact := TRUE;
+			END_IF
+			
+			// body
+			bH1 := TRUE;
+			bHEmg := FALSE;
+			bConveyor := TRUE;
+			bLibero := TRUE;
+			
+			// next state transition
+			IF bStopRequest THEN
+				eNewStep := E_Step.Stopping;
+			ELSE
+				IF fbRtPacketIn.Q AND tStepTime < T#10S THEN
+					eNewStep := E_Step.Feeding;
+				ELSIF tStepTime > T#10S THEN
+					eNewStep := E_Step.Stopping;
+				END_IF
+			END_IF
+			
+			// on exit action
+			IF eNewStep <> E_Step.NoStep THEN
+				;
+			END_IF
+			
+	ELSE
+		// this happens also if we forget to code one step 
+		eNewstep := E_Step.NeOrError;
+		eErrStep := E_Step.Unknown;
+		nErrId := -9;
+	END_CASE;
+	
+	// 3. Epilogo della MSF ------------------------------------------------------
+	// 3.1 chiamata di FB accessorie
+	osc( enable := (eStep = E_Step.Recovering), t_high := T#500MS, t_low := T#500MS );
+	
+	// 3.2 elapsed time into the current step
+	fbTonStep(IN := (eNewstep = E_Step.NoStep), PT := T#500H );
+	tStepTime := fbTonStep.ET;
+	
+END_IF
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

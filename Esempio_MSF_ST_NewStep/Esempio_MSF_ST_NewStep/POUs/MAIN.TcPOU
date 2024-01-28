@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="MAIN" Id="{74d4ff9d-554e-4a0c-8da2-5544c806d494}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+// istanza della MSF del nastro
+  nastro	:	FB_MSF();
+  
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[nastro(
+	bEnable:= TRUE, 
+	bStart:= GVL_IO.start, 
+	bStop:= GVL_IO.stop, 
+	bEmg:= GVL_IO.emg, 
+	bAck:= GVL_IO.ack, 
+	bFc1:= GVL_IO.fc1, 
+	bFc2:= GVL_IO.fc2, 
+	eStep=> GVL_IO.eStep, 
+	tStepTime=> GVL_IO.tStepTime, 
+	eErrStep=> GVL_IO.eErrStep, 
+	nErrId=> GVL_IO.nErrId, 
+	bH1=> GVL_IO.h1, 
+	bHEmg=> GVL_IO.hemg, 
+	bConveyor=> GVL_IO.m, 
+	bLibero=> GVL_IO.libero);
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_Lampeggio" Id="{35aa9bd8-710a-4aa6-9355-a8182b81bfe3}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_Lampeggio
+VAR_INPUT
+	enable	:	BOOL;
+	t_high	:	TIME;
+	t_low	:	TIME;
+END_VAR
+VAR_OUTPUT
+	q		:	BOOL;
+END_VAR
+VAR
+	t1		:	TON();
+	t2		:	TON();	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[t1(IN:= enable AND NOT(t2.Q), PT:= t_low );
+t2(IN:= t1.Q, PT:= t_high);
+// comando l'uscita dell'FB
+q := t1.Q;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>
