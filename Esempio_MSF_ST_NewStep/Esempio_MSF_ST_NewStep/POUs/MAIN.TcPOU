@@ -3,13 +3,13 @@
   <POU Name="MAIN" Id="{74d4ff9d-554e-4a0c-8da2-5544c806d494}" SpecialFunc="None">
     <Declaration><![CDATA[PROGRAM MAIN
 VAR
-// istanza della MSF del nastro
-  nastro	:	FB_MSF();
+// Conveyor instance
+  conveyor	:	FB_MSF();
   
 END_VAR
 ]]></Declaration>
     <Implementation>
-      <ST><![CDATA[nastro(
+      <ST><![CDATA[conveyor(
 	bEnable:= TRUE, 
 	bStart:= GVL_IO.start, 
 	bStop:= GVL_IO.stop, 
@@ -17,14 +17,12 @@ END_VAR
 	bAck:= GVL_IO.ack, 
 	bFc1:= GVL_IO.fc1, 
 	bFc2:= GVL_IO.fc2, 
-	eStep=> GVL_IO.eStep, 
-	tStepTime=> GVL_IO.tStepTime, 
-	eErrStep=> GVL_IO.eErrStep, 
-	nErrId=> GVL_IO.nErrId, 
+	stStatus := GVL_IO.stStatus,
 	bH1=> GVL_IO.h1, 
 	bHEmg=> GVL_IO.hemg, 
-	bConveyor=> GVL_IO.m, 
-	bLibero=> GVL_IO.libero);
+	bConveyor=> GVL_IO.km, 
+	bIsEmpty=> GVL_IO.isEmpty);
+	
 ]]></ST>
     </Implementation>
   </POU>

@@ -5,26 +5,26 @@
 {attribute 'strict'}
 TYPE E_Step :
 (
-	// special steps
-	NoStep := -32767,	// nessuno step
-	Unknown := -32000,	// step sconosciuto
+	// Special steps
+	NoStep := -32767,	// No step
+	Unknown := -32000,	// Unknown step
 	
 	// Not Enabled or Errors
-	NeOrError := -990,	// SE, non abilitata o in errore
+	NeOrError := -990,	// Not enabled or at fault
 	
 	// Recovery
-	Recovering := 990,	// SA, ripristino dopo errore
+	Recovering := 990,	// Restore After Failure
 
 	// Stopping
-	Stopping := 900,	// Fase di spegnimento nominale
+	Stopping := 900,	// Nominal shutdown
 	
 	// Stop
-	Stop := 0, 			// S0, stop
+	Stop := 0, 			// Stop
 	
-	// working steps
-	Waiting	:= 100,		// S1, attesa oggetto
-	Feeding := 200,		// S2, trasferimento oggetto
-	Unloading := 300	// S3, scarico oggetto in uscita 
+	// Working steps
+	Waiting	:= 100,		// Waiting for object
+	Feeding := 200,		// Object Transfer
+	Unloading := 300	// Outgoing object discharge
    
 );
 END_TYPE

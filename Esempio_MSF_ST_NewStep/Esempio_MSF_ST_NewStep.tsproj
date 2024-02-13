@@ -11,7 +11,7 @@
 		</System>
 		<Plc>
 			<Project GUID="{59CE9F32-972A-4CB2-ABD7-F89F1A4B1EAE}" Name="Esempio_MSF_ST_NewStep" PrjFilePath="Esempio_MSF_ST_NewStep\Esempio_MSF_ST_NewStep.plcproj" TmcFilePath="Esempio_MSF_ST_NewStep\Esempio_MSF_ST_NewStep.tmc" ReloadTmc="true" AmsPort="851" FileArchiveSettings="#x000e" SymbolicMapping="true">
-				<Instance Id="#x08502000" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcPath="Esempio_MSF_ST_NewStep\Esempio_MSF_ST_NewStep.tmc" TmcHash="{56A928DC-A22F-39F9-D3D2-F1F49041F6B2}">
+				<Instance Id="#x08502000" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcPath="Esempio_MSF_ST_NewStep\Esempio_MSF_ST_NewStep.tmc" TmcHash="{0435CDCA-CDFA-7E18-7767-FC6266111209}">
 					<Name>Esempio_MSF_ST_NewStep Instance</Name>
 					<CLSID ClassFactory="TcPlc30">{08500001-0000-0000-F000-000000000064}</CLSID>
 					<Contexts>

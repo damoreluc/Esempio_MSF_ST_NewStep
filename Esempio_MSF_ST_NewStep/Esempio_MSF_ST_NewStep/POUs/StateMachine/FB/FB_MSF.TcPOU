@@ -4,107 +4,93 @@
     <Declaration><![CDATA[FUNCTION_BLOCK FB_MSF
 VAR_INPUT
 	(* main inputs to the state machine *)
-	bEnable		: BOOL;		// abilitazione della MSF
-	bStart		: BOOL;		// comando messa in marcia (NA)
-	bStop		: BOOL;		// comando di arresto (NC)
-	bEmg		: BOOL;		// comando di emergenza (NC)
-	bAck		: BOOL;		// comando ripristino dopo emergenza (NA)
-	bFc1		: BOOL;		// fotocellula caricamento sul nastro (NA)
-	bFc2		: BOOL;		// fotocellula scarico dal nastro (NA)
+	bEnable		: BOOL;		// state machine enable
+	bStart		: BOOL;		// start signal (N.O. contact)
+	bStop		: BOOL;		// stop signal (N.C. contact)
+	bEmg		: BOOL;		// emergency signal (N.C. contact)
+	bAck		: BOOL;		// error acknowledge signal (N.O. contact)
+	bFc1		: BOOL;		// proximity sensor on conveyor input (N.O. contact)
+	bFc2		: BOOL;		// proximity sensor on conveyor output (N.O. contact)
 END_VAR
 
 VAR_OUTPUT
-	(* state machine internals, useful for debugging  *)
-	eStep		: E_Step;	// stato attuale della MSF
-	tStepTime	: TIME;		// tempo di permanenza trascorso nello stato
-	eErrStep	: E_Step;	// stato in cui è stato generato un errore
-	nErrId		: DINT;		// codice identificativo dell'errore
-	
 	(* control signals to the plant *)
-	bH1			: BOOL;		// indicatore macchina accesa
-	bHEmg		: BOOL;		// indicatore stato emergenza
-	bConveyor	: BOOL;		// nastro trasportatore
-	bLibero		: BOOL;		// il nastro è libero
+	bH1			:	BOOL;	// machine running light indicator
+	bHemg		:	BOOL;	// emergency light indicator
+	bConveyor	:	BOOL;	// conveyor motor contactor
+	bIsEmpty	:	BOOL;	// TRUE when conveyor is empty
 	
+END_VAR
+
+VAR_IN_OUT
+	(* state machine internals, useful for debugging  *)
+	stStatus : ST_FSM_Status;
 END_VAR
 
 VAR
 	(* state machine internals *)
-	bInitialized : BOOL;	// inizializzazione dell' FB
-	eNewstep : E_Step;		// richiesta di un nuovo passo
-	bEntryact : BOOL;		// azione di ingresso al passo eseguita
-	fbTonStep : TON;		// temporizzatore permanenza nel passo
-	
-	// timers
-	T31 : TON();
-	fbTonRecovery : TON();	// 
+	bInitialized : BOOL;		// FB initialization
+	eNewstep : E_Step;			// Request for a new step
+	bEntryact : BOOL;			// Step Entry Action Performed
+	fbTonStep : TON;			// Permanence in step timer
 	
 	(* filters on other input from plant *)
-	fbTonPacketIn : TON();	// filtro sul segnale presenza oggetto
-	fbRtPacketIn : R_TRIG();// fronte presenza oggetto
-	fbTonPacketOut : TON();	// filtro sul segnale scarico oggetto
-	fbRtPacketOut: R_TRIG();// fronte scarico oggetto
+	fbTonPacketIn : TON();		// Filter on the input object presence signal
+	fbRtPacketIn : R_TRIG();	// Presence of Incoming Object (rise edge)
+	fbTonPacketOut : TON();		// Filter on the object discharge signal
+	fbRtPacketOut: R_TRIG();	// Object Discharge (rise edge)
 	
 	(* filters on stop input *)
-	fbFtStop : F_TRIG;		// fronte comando di arresto
-	bStopRequest : BOOL;	// richiesta di arresto
+	fbFtStop : F_TRIG;			// Stop control (fall edge)
+	bStopRequest : BOOL;		// Stop request
 	
-	// abilitazione dell’automatismo
+	// Enabling Automation
 	enable	: BOOL;
-	
-(*	// condizioni di transizione
-	tr_S0_S1 : BOOL;
-	tr_S1_S2 : BOOL;
-	tr_S2_S3 : BOOL;
-	tr_S3_S1 : BOOL;
-	tr_S3_S0 : BOOL;
-	tr_SE_SA : BOOL;
-	tr_SA_S0 : BOOL;
-*)	
 
-
-
-    // lampeggio
+    // Blinker
 	osc : FB_Lampeggio();
 END_VAR
 ]]></Declaration>
     <Implementation>
       <ST><![CDATA[IF NOT bInitialized THEN
-	(* here you can wait events from other controllers *)	
+	(* here you can wait events from other controllers *)
 	eNewStep := E_Step.NoStep;
-	eStep := E_Step.Stop;
+	stStatus.eStep := E_Step.Stop;
 	bEntryact := FALSE;
 	bInitialized := TRUE;
 ELSE
-	// --- codice ciclico della MSF ----------------------------------------------
+	// --- FSM Cyclical Code ----------------------------------------------
 	
-	// aggiornamento delle condizioni di abilitazione (bStop, allarmi, etc)
+	// update of the enabling conditions (bStop, alarms, etc.)
     enable := bEnable AND bStop AND bEmg;
 	
-	// 1. Preambolo della MSF ----------------------------------------------------
+	// 1. FSM Preamble ----------------------------------------------------
 
     // 1.a State machine disabled or failure
 	IF NOT bEnable OR NOT bEmg THEN
 		eNewStep := E_Step.NeOrError;
+		IF stStatus.eStep <> E_Step.NeOrError THEN
+			stStatus.eErrorStep := stStatus.eStep;
+		END_IF
 	END_IF
 
 	// 1.b Update eStep with the required step to perform
 	//     and set bEntryact to FALSE in order to enable the Entry action
 	IF eNewstep <> E_Step.NoStep THEN
-		eStep := eNewstep;
+		stStatus.eStep := eNewstep;
 		eNewstep := E_Step.NoStep;
 		bEntryact := FALSE;
 	END_IF;
 
 	// 1.c Do filters on signals	
-	fbTonPacketIn(IN := bFc1, PT := T#200MS);	// filtro sensore presenza oggetto su piattaforma carico
-	fbTonPacketOut(IN := bFc2, PT := T#200MS);	// filtro sensore presenza oggetto su piattaforma scarico	
+	fbTonPacketIn(IN := bFc1, PT := T#200MS);	// Object Presence Sensor Filter on Loading Platform
+	fbTonPacketOut(IN := bFc2, PT := T#200MS);	// Object Presence Sensor Filter on Unloading Platform	
 	
 	//     Do edge detection
-	fbRtPacketIn(CLK := fbTonPacketIn.Q);		// fronte presenza oggetto su piattaforma carico
-	fbRtPacketOut(CLK := fbTonPacketOut.Q);		// fronte presenza oggetto su piattaforma scarico	
+	fbRtPacketIn(CLK := fbTonPacketIn.Q);		// Edge detection on Loading Platform
+	fbRtPacketOut(CLK := fbTonPacketOut.Q);		// Edge detection on Unloading Platform	
 	
-	fbFtStop(CLK := bStop);						// fronte di discesa del comando di arresto
+	fbFtStop(CLK := bStop);						// Active edge of the Stop control
 	
 	// Do requests, for example to stop the machine
 	IF fbFtStop.Q AND bEnable AND bEmg THEN
@@ -113,11 +99,12 @@ ELSE
 	
 	
 	// 2. The main switch-case ---------------------------------------------------
-	CASE eStep OF
+	CASE stStatus.eStep OF
 		// not Enabled or Error -----------------------
 		E_Step.NeOrError :
 			// on entry action
 			IF NOT bEntryact THEN
+				stStatus.bFailure := TRUE;
 				bEntryact := TRUE;
 			END_IF
 			
@@ -125,7 +112,7 @@ ELSE
 			bH1 := TRUE;
 			bHEmg := TRUE;
 			bConveyor := FALSE;
-			bLibero := FALSE;
+			bIsEmpty := FALSE;
 			
 			// next state transition
 			IF bEnable AND bAck THEN
@@ -148,16 +135,16 @@ ELSE
 			bH1 := TRUE;
 			bHEmg := osc.q;
 			bConveyor := FALSE;
-			bLibero := FALSE;
+			bIsEmpty := FALSE;
 			
 			// next state transition
-			IF bEnable AND tStepTime > T#10S THEN
+			IF bEnable AND stStatus.tStepTime > T#10S THEN
 				eNewStep := E_Step.Stopping;
 			END_IF
 			
 			// on exit action
 			IF eNewStep <> E_Step.NoStep THEN
-				;
+				stStatus.bFailure := FALSE;
 			END_IF			
 
 		// Stopping -----------------------------------
@@ -171,10 +158,10 @@ ELSE
 			bH1 := TRUE;
 			bHEmg := FALSE;
 			bConveyor := FALSE;
-			bLibero := TRUE;
+			bIsEmpty := TRUE;
 			
 			// next state transition
-			IF tStepTime >= T#2S THEN
+			IF stStatus.tStepTime >= T#2S THEN
 				eNewStep := E_Step.Stop;
 			END_IF
 			
@@ -195,7 +182,7 @@ ELSE
 			bH1 := FALSE;
 			bHEmg := FALSE;
 			bConveyor := FALSE;
-			bLibero := FALSE;
+			bIsEmpty := FALSE;
 			
 			// next state transition
 			IF bStart THEN
@@ -218,7 +205,7 @@ ELSE
 			bH1 := TRUE;
 			bHEmg := FALSE;
 			bConveyor := FALSE;
-			bLibero := TRUE;
+			bIsEmpty := TRUE;
 			
 			// next state transition
 			IF bStopRequest AND NOT bFc1 THEN
@@ -245,7 +232,7 @@ ELSE
 			bH1 := TRUE;
 			bHEmg := FALSE;
 			bConveyor := TRUE;
-			bLibero := FALSE;
+			bIsEmpty := FALSE;
 			
 			// next state transition
 			IF bStopRequest THEN
@@ -272,15 +259,15 @@ ELSE
 			bH1 := TRUE;
 			bHEmg := FALSE;
 			bConveyor := TRUE;
-			bLibero := TRUE;
+			bIsEmpty := TRUE;
 			
 			// next state transition
 			IF bStopRequest THEN
 				eNewStep := E_Step.Stopping;
 			ELSE
-				IF fbRtPacketIn.Q AND tStepTime < T#10S THEN
+				IF fbRtPacketIn.Q AND stStatus.tStepTime < T#10S THEN
 					eNewStep := E_Step.Feeding;
-				ELSIF tStepTime > T#10S THEN
+				ELSIF stStatus.tStepTime > T#10S THEN
 					eNewStep := E_Step.Stopping;
 				END_IF
 			END_IF
@@ -293,17 +280,17 @@ ELSE
 	ELSE
 		// this happens also if we forget to code one step 
 		eNewstep := E_Step.NeOrError;
-		eErrStep := E_Step.Unknown;
-		nErrId := -9;
+		stStatus.eErrorStep := E_Step.Unknown;
+		stStatus.nErrorID := -9;
 	END_CASE;
 	
-	// 3. Epilogo della MSF ------------------------------------------------------
-	// 3.1 chiamata di FB accessorie
-	osc( enable := (eStep = E_Step.Recovering), t_high := T#500MS, t_low := T#500MS );
+	// 3. FSM Epilogue ------------------------------------------------------
+	// 3.1 Calling Auxiliary FBs
+	osc( enable := (stStatus.eStep = E_Step.Recovering), t_high := T#500MS, t_low := T#500MS );
 	
-	// 3.2 elapsed time into the current step
+	// 3.2 Elapsed time into the current step
 	fbTonStep(IN := (eNewstep = E_Step.NoStep), PT := T#500H );
-	tStepTime := fbTonStep.ET;
+	stStatus.tStepTime := fbTonStep.ET;
 	
 END_IF
 ]]></ST>

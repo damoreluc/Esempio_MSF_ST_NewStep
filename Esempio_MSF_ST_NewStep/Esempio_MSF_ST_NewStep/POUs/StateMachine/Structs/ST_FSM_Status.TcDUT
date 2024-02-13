@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_FSM_Status" Id="{7789e73d-3f4b-4ea9-831b-c2f1934181bf}">
+    <Declaration><![CDATA[TYPE ST_FSM_Status :
+STRUCT
+	bFailure : BOOL;				// The machine has broken down (critical + error)	
+	eStep : E_Step;					// Finite State Machine step
+	strStep : STRING;				// step described as text
+	tStepTime : TIME;				// elapsed time on each state machine step/state
+	eErrorStep : E_Step;			// Step in which the error was generated
+	nErrorID : DINT;				// Error code
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -3,12 +3,12 @@
   <POU Name="FB_Lampeggio" Id="{35aa9bd8-710a-4aa6-9355-a8182b81bfe3}" SpecialFunc="None">
     <Declaration><![CDATA[FUNCTION_BLOCK FB_Lampeggio
 VAR_INPUT
-	enable	:	BOOL;
-	t_high	:	TIME;
-	t_low	:	TIME;
+	enable	:	BOOL;  // enable the FB
+	t_high	:	TIME;  // high level duration
+	t_low	:	TIME;  // low level duration
 END_VAR
 VAR_OUTPUT
-	q		:	BOOL;
+	q		:	BOOL;  // FB output
 END_VAR
 VAR
 	t1		:	TON();
@@ -18,7 +18,7 @@ END_VAR
     <Implementation>
       <ST><![CDATA[t1(IN:= enable AND NOT(t2.Q), PT:= t_low );
 t2(IN:= t1.Q, PT:= t_high);
-// comando l'uscita dell'FB
+// drive FB output
 q := t1.Q;]]></ST>
     </Implementation>
   </POU>

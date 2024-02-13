@@ -28,13 +28,16 @@
     <Compile Include="POUs\MAIN.TcPOU">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="POUs\StateMachine\E_Step.TcTLEO">
+    <Compile Include="POUs\StateMachine\Enums\E_Step.TcTLEO">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="POUs\StateMachine\FB_Lampeggio.TcPOU">
+    <Compile Include="POUs\StateMachine\FB\FB_Lampeggio.TcPOU">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="POUs\StateMachine\FB_MSF.TcPOU">
+    <Compile Include="POUs\StateMachine\FB\FB_MSF.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\StateMachine\Structs\ST_FSM_Status.TcDUT">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>
@@ -42,6 +45,9 @@
     <Folder Include="DUTs" />
     <Folder Include="GVLs" />
     <Folder Include="POUs\StateMachine" />
+    <Folder Include="POUs\StateMachine\Enums" />
+    <Folder Include="POUs\StateMachine\FB" />
+    <Folder Include="POUs\StateMachine\Structs" />
     <Folder Include="VISUs" />
     <Folder Include="POUs" />
   </ItemGroup>
